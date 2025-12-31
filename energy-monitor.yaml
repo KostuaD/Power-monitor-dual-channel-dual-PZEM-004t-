@@ -2,18 +2,22 @@ substitutions:
   device_name: "h-esp-pzem-power-01"
   friendly_name: "Power Monitor 01"
   device_comment: "Dual Phase Energy Monitor"
-  version: "25.12.31.1"
+  version: "25.12.30.4"
   
+  # Pin definitions for XIAO ESP32-C3
+  # Physically: D6=TX(GPIO21), D7=RX(GPIO20)
   uart_tx_pin: GPIO21
   uart_rx_pin: GPIO20
   update_interval: "10s"
   
+  # Modbus addresses assigned to modules
   addr_phase_a: "1"
   addr_phase_b: "2"
 
 esphome:
   name: ${device_name}
   comment: ${device_comment}
+  # Set initial zeros on boot to avoid "NA"
   on_boot:
     priority: -10
     then:
@@ -29,6 +33,7 @@ esp32:
   framework:
     type: esp-idf
 
+# --- Connectivity ---
 api:
   encryption:
     key: !secret encryption_key
@@ -48,22 +53,12 @@ wifi:
 web_server:
   port: 80
 
-time:
-  - platform: homeassistant
-    id: ha_time
-    on_time:
-      - seconds: 59
-        minutes: 59
-        hours: 23
-        days_of_week: SUN
-        then:
-          - sensor.template.publish:
-              id: total_weekly_energy
-              state: 0
-
 logger:
   level: INFO
 
+captive_portal:
+
+# --- Communication Bus ---
 uart:
   id: uart_bus
   tx_pin: ${uart_tx_pin}
@@ -71,6 +66,7 @@ uart:
   baud_rate: 9600
   stop_bits: 1
 
+# --- Visual/Diagnostic Sensors ---
 text_sensor:
   - platform: wifi_info
     ip_address:
@@ -81,7 +77,7 @@ text_sensor:
     icon: mdi:clock-start
 
 sensor:
-  # --- PHASE L1 ---
+  # --- PHASE L1 (Address 1) ---
   - platform: pzemac
     id: pzem_l1
     address: ${addr_phase_a}
@@ -91,13 +87,17 @@ sensor:
       id: v_l1
       filters:
         - lambda: "return (x > 300.0) ? NAN : x;"
-        - timeout: { timeout: 25s, value: 0 }
+        - timeout:
+            timeout: 25s
+            value: 0
     power:
       name: "${friendly_name} L1 Power"
       id: p_l1
       filters:
         - lambda: "return (x > 25000.0) ? NAN : x;"
-        - timeout: { timeout: 25s, value: 0 }
+        - timeout:
+            timeout: 25s
+            value: 0
     energy:
       name: "${friendly_name} L1 Energy"
       id: e_l1
@@ -109,7 +109,7 @@ sensor:
         - lambda: "return (x > 1000000.0) ? NAN : x;" 
         - multiply: 0.001
 
-  # --- PHASE L2 ---
+  # --- PHASE L2 (Address 2) ---
   - platform: pzemac
     id: pzem_l2
     address: ${addr_phase_b}
@@ -119,13 +119,17 @@ sensor:
       id: v_l2
       filters:
         - lambda: "return (x > 300.0) ? NAN : x;"
-        - timeout: { timeout: 25s, value: 0 }
+        - timeout:
+            timeout: 25s
+            value: 0
     power:
       name: "${friendly_name} L2 Power"
       id: p_l2
       filters:
         - lambda: "return (x > 25000.0) ? NAN : x;"
-        - timeout: { timeout: 25s, value: 0 }
+        - timeout:
+            timeout: 25s
+            value: 0
     energy:
       name: "${friendly_name} L2 Energy"
       id: e_l2
@@ -137,7 +141,7 @@ sensor:
         - lambda: "return (x > 1000000.0) ? NAN : x;" 
         - multiply: 0.001
 
-  # --- TOTALS ---
+  # --- CALCULATED METRICS ---
   - platform: template
     name: "${friendly_name} Total Power"
     unit_of_measurement: "W"
@@ -152,22 +156,20 @@ sensor:
       return p1 + p2;
     update_interval: ${update_interval}
 
-  - platform: total_daily_energy
-    name: "${friendly_name} Total Weekly Energy"
-    id: total_weekly_energy
-    power_id: total_power
-    unit_of_measurement: "kWh"
-    accuracy_decimals: 3
-    icon: mdi:calendar-range
-    # Note: No multiply filter here, total_daily_energy handles W to kWh automatically.
-  
   - platform: internal_temperature
-    name: "${friendly_name} MCU Temperature"
+    name: "${friendly_name} Temperature"
     unit_of_measurement: "°C"
     update_interval: 60s
 
+  - platform: wifi_signal
+    name: "WiFi Signal dB"
+    id: wifi_signal_db
+    update_interval: 60s
+    entity_category: "diagnostic"
+ 
   - platform: uptime
     id: uptime_sensor
+    update_interval: 60s
     internal: true
     on_raw_value:
       then:
@@ -176,22 +178,31 @@ sensor:
             state: !lambda |-
               int seconds = round(x);
               int days = seconds / (24 * 3600);
-              int hours = (seconds % (24 * 3600)) / 3600;
-              int minutes = (seconds % 3600) / 60;
+              seconds = seconds % (24 * 3600);
+              int hours = seconds / 3600;
+              seconds = seconds % 3600;
+              int minutes = seconds /  60;
               return ((days ? to_string(days) + "d " : "") +
                      (hours ? to_string(hours) + "h " : "") +
                      (minutes ? to_string(minutes) + "m " : "")).c_str();
 
+# --- Control Buttons ---
 button:
   - platform: template
     name: "${friendly_name} L1 Reset Energy"
+    icon: "mdi:refresh"
     on_press:
-      - pzemac.reset_energy: id: pzem_l1
+      - pzemac.reset_energy:
+          id: pzem_l1
           
   - platform: template
     name: "${friendly_name} L2 Reset Energy"
+    icon: "mdi:refresh"
     on_press:
-      - pzemac.reset_energy: id: pzem_l2
+      - pzemac.reset_energy:
+          id: pzem_l2
 
   - platform: restart
     name: "ESP Reboot"
+    icon: mdi:power-cycle
+    entity_category: "diagnostic"
