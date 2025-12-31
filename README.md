@@ -6,7 +6,6 @@ IoT solution based on ESPHome for real-time monitoring of two electrical phases 
 - **Dual-Phase Monitoring**: Independent tracking of Voltage, Power, and Energy for two lines.
 - **Smart Filtering**: Automatic removal of "garbage" data (spikes) during boot or power loss.
 - **Zero-Value Logic**: Sensors automatically show `0` instead of `NA` when AC power is disconnected.
-- **Weekly Tracker**: Automated weekly energy consumption calculation.
 - **Web Interface**: Built-in dashboard for real-time viewing and energy counter resets.
 
 ## Hardware Connection
