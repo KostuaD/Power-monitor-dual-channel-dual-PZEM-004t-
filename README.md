@@ -51,3 +51,8 @@ Look for PZEM_FIX: Command to set address 2 sent! in the logs.
 Important: Power cycle the PZEM (disconnect AC and 5V for 10 seconds) to apply the changes.
 
 Now you can connect both modules in parallel and use the main energy-monitor.yaml configuration.
+
+Case:
+<img width="887" height="502" alt="my screenshots 2025-12-31 at 20 07 46" src="https://github.com/user-attachments/assets/c8beb9c5-78d2-4e9c-b729-840210a1e2ec" />
+
+
