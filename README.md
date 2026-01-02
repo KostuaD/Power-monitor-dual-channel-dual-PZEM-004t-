@@ -55,4 +55,5 @@ Now you can connect both modules in parallel and use the main energy-monitor.yam
 Case:
 <img width="887" height="502" alt="my screenshots 2025-12-31 at 20 07 46" src="https://github.com/user-attachments/assets/c8beb9c5-78d2-4e9c-b729-840210a1e2ec" />
 
+<img width="887" height="502" alt="Screenshot 2026-01-02 at 10 04 01" src="https://github.com/user-attachments/assets/f58b00a1-964f-414b-bc61-637ffaa245d6" />
 
