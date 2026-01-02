@@ -2,7 +2,7 @@ substitutions:
   device_name: "h-esp-pzem-power-01"
   friendly_name: "Power Monitor 01"
   device_comment: "Dual Phase Energy Monitor"
-  version: "26.01.02.4"
+  version: "26.01.02.7"
   
   # Pin definitions for XIAO ESP32-C3
   # Physically: D6=TX(GPIO21), D7=RX(GPIO20)
@@ -13,8 +13,6 @@ substitutions:
   # Modbus addresses assigned to modules
   addr_phase_a: "1"
   addr_phase_b: "2"
-
-  max_uart_retries: "2"
 
 esphome:
   name: ${device_name}
@@ -286,3 +284,4 @@ button:
           id(uart_bus).flush();
           id(uart_bus).setup();
           ESP_LOGI("uart", "Manual UART soft-reset performed");
+
