@@ -20,6 +20,24 @@ IoT solution based on ESPHome for real-time monitoring of two electrical phases 
 3. Use the provided `.yaml` configuration to flash your device.
 4. If you have a new PZEM module, use the "Reset" and "Address change" functions to set it up.
 
+## 🛡️ Stability & Fault Tolerance (UPS Integration)
+
+Since the ESP32 is powered by a UPS and the PZEM modules are powered by the mains, a "communication hang" can occur during power transitions. This project implements a multi-tier watchdog system to ensure 24/7 reliability:
+
+### 1. Smart Watchdog Logic
+The system monitors the state of the PZEM sensors every minute. If data is missing (NaN or 0V) while the ESP32 is online, it performs the following recovery steps:
+- **After 2 minutes of silence**: Triggers a **Soft UART Reset**. It flushes buffers and re-initializes the UART driver without rebooting the MCU.
+- **After 5 minutes of silence**: Triggers a **Full Hardware Reboot** of the ESP32 to clear the Modbus stack and re-establish a fresh connection.
+
+### 2. Enhanced UART Configuration
+- **Increased RX Buffer**: Set to `512 bytes` to prevent buffer overflows during electrical noise caused by AC switching.
+- **Manual Debugging**: A "Soft Reset UART" button is available in the web interface for manual maintenance.
+
+### 3. Monitoring Accuracy (Riemann Sum & Utility Meter)
+To ensure precise energy tracking in Home Assistant:
+- **Integration**: Uses the `Riemann sum integral` (Left method) to convert raw Power (W) to Energy (kWh).
+- **Weekly Tracking**: A `Utility Meter` helper is used for automated weekly resets, providing a reliable historical view even if the ESP32 reboots.
+
 ## Caution
 **HIGH VOLTAGE!** Working with AC 220V is dangerous. Ensure all connections are isolated and the device is housed in a non-conductive enclosure.
 
