@@ -2,7 +2,7 @@ substitutions:
   device_name: "h-esp-pzem-power-01"
   friendly_name: "Power Monitor 01"
   device_comment: "Dual Phase Energy Monitor"
-  version: "26.01.02.7"
+  version: "26.01.02.8"
   
   # Pin definitions for XIAO ESP32-C3
   # Physically: D6=TX(GPIO21), D7=RX(GPIO20)
@@ -74,33 +74,39 @@ interval:
     then:
       - lambda: |-
           static int failure_min = 0;
-          static int uart_reset_count = 0;
+          uint32_t current_uptime = id(uptime_sensor).state / 60; // Uptime in minutes
 
-          // Condition: no data (voltage < 100V or NaN)
+          // Condition: No data received (Voltage < 100V or NaN)
           if (std::isnan(id(v_l1).state) || id(v_l1).state < 100.0) {
             failure_min++;
-            ESP_LOGW("watchdog", "PZEM failure detected. Minutes: %d", failure_min);
+            ESP_LOGW("watchdog", "PZEM failure detected. Minutes without data: %d", failure_min);
           } else {
+            // Reset counter immediately if data is valid
             failure_min = 0;
-            uart_reset_count = 0;
             return;
           }
 
-          // Stage 1: After 2 minutes, try a "soft" UART restart
+          // Stage 1: Attempt a "soft" UART driver reset after 2 minutes
           if (failure_min == 2) {
-            ESP_LOGE("watchdog", "Attempting soft UART reset...");
-            // Clearing UART buffers
+            ESP_LOGE("watchdog", "Attempting soft UART reset to clear communication bus...");
             id(uart_bus).flush(); 
-            // Reinitializing UART via built-in ESPHome method
             id(uart_bus).setup(); 
-            uart_reset_count++;
           }
 
-          // Step 2: If UART reset does not help for another 3 minutes (5 total)
-          // Or if we have already exhausted the UART reset attempt limit
+          // Stage 2: Attempt a Hard Reboot after 5 minutes, 
+          // but only once every 30 minutes to save hardware resources.
           if (failure_min >= 5) {
-            ESP_LOGE("watchdog", "Soft resets failed. Hardware rebooting ESP...");
-            App.reboot();
+            // Check if 30 minutes have passed since the last boot
+            // This prevents constant reboot cycles during long blackouts
+            if (current_uptime >= 30 || current_uptime < 5) { 
+               // Allow reboot only if system has been running for > 30 min 
+               // (or if it's the very first failure right after startup)
+               ESP_LOGE("watchdog", "Critical communication failure. Hard rebooting ESP...");
+               App.reboot();
+            } else {
+               // Stay online but wait for the 30-minute window
+               ESP_LOGW("watchdog", "Still no data. Waiting for the next 30min reboot window (Current uptime: %d min)", (int)current_uptime);
+            }
           }
 
 # --- Visual/Diagnostic Sensors ---
@@ -284,3 +290,4 @@ button:
           id(uart_bus).flush();
           id(uart_bus).setup();
           ESP_LOGI("uart", "Manual UART soft-reset performed");
+
