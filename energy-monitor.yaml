@@ -2,7 +2,7 @@ substitutions:
   device_name: "h-esp-pzem-power-01"
   friendly_name: "Power Monitor 01"
   device_comment: "Dual Phase Energy Monitor"
-  version: "25.12.30.4"
+  version: "25.01.02.2"
   
   # Pin definitions for XIAO ESP32-C3
   # Physically: D6=TX(GPIO21), D7=RX(GPIO20)
@@ -13,6 +13,8 @@ substitutions:
   # Modbus addresses assigned to modules
   addr_phase_a: "1"
   addr_phase_b: "2"
+
+  max_uart_retries: "2"
 
 esphome:
   name: ${device_name}
@@ -65,6 +67,42 @@ uart:
   rx_pin: ${uart_rx_pin}
   baud_rate: 9600
   stop_bits: 1
+  rx_buffer_size: 512
+
+# --- PZEM Watchdog ---
+interval:
+  - interval: 1min
+    then:
+      - lambda: |-
+          static int failure_min = 0;
+          static int uart_reset_count = 0;
+
+          // Condition: no data (voltage < 100V or NaN)
+          if (std::isnan(id(v_l1).state) || id(v_l1).state < 100.0) {
+            failure_min++;
+            ESP_LOGW("watchdog", "PZEM failure detected. Minutes: %d", failure_min);
+          } else {
+            failure_min = 0;
+            uart_reset_count = 0;
+            return;
+          }
+
+          // Stage 1: After 2 minutes, try a "soft" UART restart
+          if (failure_min == 2) {
+            ESP_LOGE("watchdog", "Attempting soft UART reset...");
+            // Clearing UART buffers
+            id(uart_bus).flush(); 
+            // Reinitializing UART via built-in ESPHome method
+            id(uart_bus).setup(); 
+            uart_reset_count++;
+          }
+
+          // Step 2: If UART reset does not help for another 3 minutes (5 total)
+          // Or if we have already exhausted the UART reset attempt limit
+          if (failure_min >= 5) {
+            ESP_LOGE("watchdog", "Soft resets failed. Hardware rebooting ESP...");
+            App.reboot();
+          }
 
 # --- Visual/Diagnostic Sensors ---
 text_sensor:
@@ -98,6 +136,11 @@ sensor:
         - timeout:
             timeout: 25s
             value: 0
+
+    power_factor:
+      name: "L1 Power Factor"
+      id: pf_l1
+
     energy:
       name: "${friendly_name} L1 Energy"
       id: e_l1
@@ -130,6 +173,11 @@ sensor:
         - timeout:
             timeout: 25s
             value: 0
+
+    power_factor:
+      name: "L2 Power Factor"
+      id: pf_l2
+
     energy:
       name: "${friendly_name} L2 Energy"
       id: e_l2
@@ -186,6 +234,13 @@ sensor:
                      (hours ? to_string(hours) + "h " : "") +
                      (minutes ? to_string(minutes) + "m " : "")).c_str();
 
+binary_sensor:
+  - platform: template
+    name: "${friendly_name} PZEM Status"
+    device_class: connectivity
+    lambda: |-
+      return (id(v_l1).state > 10.0);
+
 # --- Control Buttons ---
 button:
   - platform: template
@@ -206,3 +261,11 @@ button:
     name: "ESP Reboot"
     icon: mdi:power-cycle
     entity_category: "diagnostic"
+
+  - platform: template
+    name: "Debug Soft Reset UART"
+    on_press:
+      - lambda: |-
+          id(uart_bus).flush();
+          id(uart_bus).setup();
+          ESP_LOGI("uart", "Manual UART soft-reset performed");
