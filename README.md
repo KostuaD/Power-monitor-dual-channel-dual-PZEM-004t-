@@ -38,6 +38,11 @@ To ensure precise energy tracking in Home Assistant:
 - **Integration**: Uses the `Riemann sum integral` (Left method) to convert raw Power (W) to Energy (kWh).
 - **Weekly Tracking**: A `Utility Meter` helper is used for automated weekly resets, providing a reliable historical view even if the ESP32 reboots.
 
+### 🔍 Troubleshooting
+- **All values are 0 or NaN**: Check if 220V AC is connected to PZEM. The measurement chip is powered by the AC line, not the 5V UART line.
+- **Watchdog Triggered**: If the log shows `Attempting soft UART reset`, it means electrical noise was detected on the data lines. Ensure GND of ESP32 and PZEM are common.
+- **Frequency/Power Factor issues**: Ensure your PZEM-004T is version V3.0, as older versions do not support these registers.
+
 ## Caution
 **HIGH VOLTAGE!** Working with AC 220V is dangerous. Ensure all connections are isolated and the device is housed in a non-conductive enclosure.
 
