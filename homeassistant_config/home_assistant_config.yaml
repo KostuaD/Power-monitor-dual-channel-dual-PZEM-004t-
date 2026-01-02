@@ -1,1 +1,36 @@
+# --- Home Assistant Configuration ---
 
+# 1. Створення інтегрального сенсора (W -> kWh)
+# Перетворює миттєву потужність у накопичену енергію
+sensor:
+  - platform: integration
+    source: sensor.power_monitor_01_total_power
+    name: "Power Monitor 01 Total Energy"
+    unit_prefix: k
+    round: 3
+    method: left  # Найкращий метод для вимірювання електроенергії
+
+# 2. Створення лічильників (Utility Meter)
+# Для відстеження споживання за періодами
+utility_meter:
+  daily_energy:
+    source: sensor.power_monitor_01_total_energy
+    name: "Energy Daily"
+    cycle: daily
+  weekly_energy:
+    source: sensor.power_monitor_01_total_energy
+    name: "Energy Weekly"
+    cycle: weekly
+  monthly_energy:
+    source: sensor.power_monitor_01_total_energy
+    name: "Energy Monthly"
+    cycle: monthly
+
+# 3. Додатково: Сенсори для розрахунку вартості (приклад)
+template:
+  - sensor:
+      - name: "Electricity Daily Cost"
+        unit_of_measurement: "грн"
+        state: >
+          {% set rate = 4.32 %}  # Вкажіть ваш тариф за кВт·год
+          {{ (states('sensor.energy_daily') | float(0) * rate) | round(2) }}
