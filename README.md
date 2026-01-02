@@ -1,48 +1,65 @@
-# Dual-Phase Energy Monitor (XIAO ESP32-C3 + 2x PZEM-004T)
+# ⚡ Power Monitor Dual Channel (PZEM-004T + XIAO ESP32-C3)
 
-IoT solution based on ESPHome for real-time monitoring of two electrical phases using a Seeed Studio XIAO ESP32-C3 and two PZEM-004T modules.
+A reliable energy monitoring solution for two independent electrical lines (phases) based on ESPHome. This project is specifically designed for stability under unstable power grid conditions and works seamlessly with UPS-backed controllers.
 
-## Features
-- **Dual-Phase Monitoring**: Independent tracking of Voltage, Power, and Energy for two lines.
-- **Smart Filtering**: Automatic removal of "garbage" data (spikes) during boot or power loss.
-- **Zero-Value Logic**: Sensors automatically show `0` instead of `NA` when AC power is disconnected.
-- **Web Interface**: Built-in dashboard for real-time viewing and energy counter resets.
 
-## Hardware Connection
-- **MCU**: Seeed Studio XIAO ESP32-C3
-- **Sensors**: 2x PZEM-004T (V3.0)
-- **UART Pins**: TX (GPIO21 / D6), RX (GPIO20 / D7)
-- **Important**: Modules must have unique Modbus addresses (1 and 2).
 
-## Installation
-1. Install [ESPHome](https://esphome.io/).
-2. Create a `secrets.yaml` file with your WiFi and API credentials.
-3. Use the provided `.yaml` configuration to flash your device.
-4. If you have a new PZEM module, use the "Reset" and "Address change" functions to set it up.
+## ✨ Features (v26.01.02.4)
+- **Dual-Phase Support**: Separate metrics for each line + calculated Total Power.
+- **UPS-Aware**: Intelligent Watchdog restores communication if 220V mains fail while the ESP32 remains powered.
+- **Multi-Tier Protection**:
+  - **Soft UART Reset**: Automatically clears the data bus after 2 minutes of silence.
+  - **Hard Reboot**: Performs a full MCU reboot after 5 minutes of persistent communication failure.
+- **Full Metrics**: Voltage, Power, Energy, Frequency (Hz), and Power Factor (PF).
+- **Advanced Diagnostics**: Service reset buttons and real-time connectivity status directly in Home Assistant.
 
-## 🛡️ Stability & Fault Tolerance (UPS Integration)
+## 🛠 Hardware
+- **Controller**: [Seeed Studio XIAO ESP32-C3](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C3-p-5431.html).
+- **Sensors**: 2x PZEM-004T V3.0.
+- **Powering**: ESP32 is powered via UPS (5V USB), while PZEM modules are powered by the measured AC 220V line.
 
-Since the ESP32 is powered by a UPS and the PZEM modules are powered by the mains, a "communication hang" can occur during power transitions. This project implements a multi-tier watchdog system to ensure 24/7 reliability:
+### Pinout Diagram
+| XIAO ESP32-C3 | PZEM-004T (Module 1 & 2) | Description |
+| :--- | :--- | :--- |
+| **5V** | **VCC** | Logic Power |
+| **GND** | **GND** | Common Ground |
+| **D6 (GPIO21)** | **RX** | Data Transmission (TX on ESP) |
+| **D7 (GPIO20)** | **TX** | Data Reception (RX on ESP) |
 
-### 1. Smart Watchdog Logic
-The system monitors the state of the PZEM sensors every minute. If data is missing (NaN or 0V) while the ESP32 is online, it performs the following recovery steps:
-- **After 2 minutes of silence**: Triggers a **Soft UART Reset**. It flushes buffers and re-initializes the UART driver without rebooting the MCU.
-- **After 5 minutes of silence**: Triggers a **Full Hardware Reboot** of the ESP32 to clear the Modbus stack and re-establish a fresh connection.
+> **Note:** PZEM modules must be connected in parallel to the same UART bus on the ESP32.
 
-### 2. Enhanced UART Configuration
-- **Increased RX Buffer**: Set to `512 bytes` to prevent buffer overflows during electrical noise caused by AC switching.
-- **Manual Debugging**: A "Soft Reset UART" button is available in the web interface for manual maintenance.
 
-### 3. Monitoring Accuracy (Riemann Sum & Utility Meter)
-To ensure precise energy tracking in Home Assistant:
-- **Integration**: Uses the `Riemann sum integral` (Left method) to convert raw Power (W) to Energy (kWh).
-- **Weekly Tracking**: A `Utility Meter` helper is used for automated weekly resets, providing a reliable historical view even if the ESP32 reboots.
 
-### 🔍 Troubleshooting
-- **All values are 0 or NaN**: Check if 220V AC is connected to PZEM. The measurement chip is powered by the AC line, not the 5V UART line.
-- **Watchdog Triggered**: If the log shows `Attempting soft UART reset`, it means electrical noise was detected on the data lines. Ensure GND of ESP32 and PZEM are common.
-- **Frequency/Power Factor issues**: Ensure your PZEM-004T is version V3.0, as older versions do not support these registers.
+## ⚙️ PZEM Address Configuration
+To run two modules on a single bus, you must assign unique Modbus addresses (default is `1` for all units).
 
+1. Connect **only one** PZEM module to the ESP32.
+2. Apply 220V AC to the PZEM (the measurement chip requires AC power to save settings).
+3. Flash the `utils/pzem_address_fixer.yaml` file.
+4. Click the **"Set Address to 2"** button in the web interface.
+5. Repeat for the second module if you wish to use address `3`.
+6. Once configured, connect both modules in parallel and flash the main configuration.
+
+## 🏠 Home Assistant Integration
+For accurate weekly/monthly energy tracking, it is recommended to use built-in Helpers:
+
+1. **Riemann Sum Integral**:
+   - Input: `Power Monitor 01 Total Power`
+   - Integration Method: `Left`
+   - Result: `Total Energy (kWh)`
+2. **Utility Meter**:
+   - Input: Your Riemann Integral sensor.
+   - Reset Cycle: `Weekly` / `Monthly`.
+
+
+
+## 📝 Troubleshooting
+- **Status "Disconnected"**: Ensure 220V AC is applied to the PZEM module (the logic won't respond without AC power) and check for a common GND.
+- **Values 0 or NaN**: The Watchdog will attempt to reset the UART automatically. Check logs for `watchdog: Attempting soft UART reset`.
+- **Compilation Errors**: Ensure you are using the latest version of ESPHome and the `esp-idf` framework.
+
+## 📄 License
+This project is released under the MIT License. Feel free to use and modify it as you see fit.
 ## Caution
 **HIGH VOLTAGE!** Working with AC 220V is dangerous. Ensure all connections are isolated and the device is housed in a non-conductive enclosure.
 
